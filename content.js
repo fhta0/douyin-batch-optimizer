@@ -22,6 +22,8 @@
     fallbackRecordWaitMs: 90 * 1000
   };
 
+  const DEFAULT_DIALOG_PAGE_SIZE = 10;
+
   const settings = Object.assign({}, DEFAULT_SETTINGS);
 
   const state = {
@@ -39,6 +41,7 @@
     lastDialogPageSize: null,
     lastDialogOffset: 0,
     pendingBatchReconcile: null,
+    pendingTaskCompletion: null,
     logs: [],
     panelPosition: null
   };
@@ -156,6 +159,7 @@
             lastDialogPageSize: state.lastDialogPageSize,
             lastDialogOffset: state.lastDialogOffset,
             pendingBatchReconcile: state.pendingBatchReconcile,
+            pendingTaskCompletion: state.pendingTaskCompletion,
             logs: state.logs.slice(0, settings.logRetentionCount),
             panelPosition: state.panelPosition
           }
@@ -190,6 +194,7 @@
     state.lastDialogPageSize = saved.lastDialogPageSize || null;
     state.lastDialogOffset = saved.lastDialogOffset || 0;
     state.pendingBatchReconcile = saved.pendingBatchReconcile || null;
+    state.pendingTaskCompletion = saved.pendingTaskCompletion || null;
     state.logs = Array.isArray(saved.logs) ? saved.logs.slice(0, settings.logRetentionCount) : [];
     state.panelPosition = saved.panelPosition || null;
     renderFloatingPanel();
@@ -583,6 +588,14 @@
     return true;
   }
 
+  async function markTaskCompletion(reason) {
+    state.pendingTaskCompletion = {
+      reason: reason || "任务已完成",
+      at: Date.now()
+    };
+    await syncRuntime();
+  }
+
   function startPendingSync() {
     if (pendingSyncTimer) {
       return;
@@ -965,9 +978,31 @@
         const canBackwardJump = currentPage !== null && jumpTarget.pageNumber < currentPage - 1;
         if (canForwardJump || canBackwardJump) {
           const label = jumpTarget.strategy === "direct" ? "直接跳转到可见页" : "借助页码窗口跳转到可见页";
+          const windowSignatureBefore = getVisibleDialogPageButtons()
+            .map(function (item) {
+              return item.pageNumber;
+            })
+            .join(",");
           log("恢复页码时" + label + "：" + jumpTarget.pageNumber);
           jumpTarget.node.click();
-          await sleep(1200);
+          const jumpStart = Date.now();
+          while (Date.now() - jumpStart < 2500) {
+            const pageNow = getCurrentDialogPageNumber();
+            const windowSignatureNow = getVisibleDialogPageButtons()
+              .map(function (item) {
+                return item.pageNumber;
+              })
+              .join(",");
+            if (
+              (pageNow !== null && currentPage !== null && pageNow !== currentPage) ||
+              (pageNow !== null && pageNow === jumpTarget.pageNumber) ||
+              windowSignatureNow !== windowSignatureBefore
+            ) {
+              await sleep(300);
+              break;
+            }
+            await sleep(120);
+          }
           if (currentPage !== null) {
             guard += Math.max(Math.abs(jumpTarget.pageNumber - currentPage), 1);
           } else {
@@ -1088,27 +1123,6 @@
     return true;
   }
 
-  function dispatchKeyboardEvent(el, type, key) {
-    if (!el) {
-      return false;
-    }
-    const eventInit = {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      key: key,
-      code: key,
-      which: key === "Enter" ? 13 : key === "ArrowDown" ? 40 : 0,
-      keyCode: key === "Enter" ? 13 : key === "ArrowDown" ? 40 : 0
-    };
-    try {
-      el.dispatchEvent(new KeyboardEvent(type, eventInit));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
   function activateElement(el) {
     if (!el) {
       return false;
@@ -1124,109 +1138,6 @@
         el.click();
       } catch (e) {}
     }
-    return true;
-  }
-
-  function isRectInside(rect, containerRect) {
-    if (!rect || !containerRect) {
-      return false;
-    }
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    return centerX >= containerRect.left && centerX <= containerRect.right && centerY >= containerRect.top && centerY <= containerRect.bottom;
-  }
-
-  function findDialogPageSizeSelectRoot() {
-    const dialogRoot = getOptimizeDialogRoot();
-    const dialogRect = dialogRoot ? dialogRoot.getBoundingClientRect() : null;
-    const scopes = getDialogSearchScopes();
-    const candidates = [];
-
-    for (let i = 0; i < scopes.length; i++) {
-      const nodes = scopes[i].querySelectorAll(
-        "li.ecom-g-pagination-options .ecom-g-select.ecom-g-pagination-options-size-changer"
-      );
-      for (let j = 0; j < nodes.length; j++) {
-        if (!isElementVisible(nodes[j])) {
-          continue;
-        }
-        const rect = nodes[j].getBoundingClientRect();
-        if (dialogRect && !isRectInside(rect, dialogRect)) {
-          continue;
-        }
-        candidates.push({ node: nodes[j], rect: rect });
-      }
-    }
-
-    if (!candidates.length) {
-      return null;
-    }
-
-    candidates.sort(function (a, b) {
-      if (Math.abs(b.rect.bottom - a.rect.bottom) > 2) {
-        return b.rect.bottom - a.rect.bottom;
-      }
-      return b.rect.right - a.rect.right;
-    });
-
-    return candidates[0].node;
-  }
-
-  function findDialogPageSizeInput(selectRoot) {
-    const root = selectRoot || findDialogPageSizeSelectRoot();
-    if (!root) {
-      return null;
-    }
-    const input = root.querySelector("input.ecom-g-select-selection-search-input");
-    return input && isElementVisible(input.parentElement || input) ? input : null;
-  }
-
-  function isDialogPageSizeDropdownOpen() {
-    const input = findDialogPageSizeInput();
-    return !!(input && input.getAttribute("aria-expanded") === "true");
-  }
-
-  async function openDialogPageSizeDropdown(selectRoot, trigger) {
-    const input = findDialogPageSizeInput(selectRoot);
-    if (input && typeof input.focus === "function") {
-      try {
-        input.focus();
-      } catch (e) {}
-    }
-
-    activateElement(trigger);
-    await sleep(250);
-    if (isDialogPageSizeDropdownOpen()) {
-      return true;
-    }
-
-    if (input) {
-      dispatchKeyboardEvent(input, "keydown", "ArrowDown");
-      dispatchKeyboardEvent(input, "keyup", "ArrowDown");
-      await sleep(250);
-    }
-
-    return isDialogPageSizeDropdownOpen();
-  }
-
-  async function selectDialogPageSizeByKeyboard(selectRoot) {
-    const input = findDialogPageSizeInput(selectRoot);
-    if (!input) {
-      return false;
-    }
-    if (typeof input.focus === "function") {
-      try {
-        input.focus();
-      } catch (e) {}
-    }
-    dispatchKeyboardEvent(input, "keydown", "ArrowDown");
-    dispatchKeyboardEvent(input, "keyup", "ArrowDown");
-    await sleep(120);
-    dispatchKeyboardEvent(input, "keydown", "ArrowDown");
-    dispatchKeyboardEvent(input, "keyup", "ArrowDown");
-    await sleep(120);
-    dispatchKeyboardEvent(input, "keydown", "Enter");
-    dispatchKeyboardEvent(input, "keyup", "Enter");
     return true;
   }
 
@@ -1320,37 +1231,8 @@
     return !findDialogNextPageButton();
   }
 
-  function getDialogPageSizeText() {
-    const selectRoot = findDialogPageSizeSelectRoot();
-    if (selectRoot) {
-      const display = selectRoot.querySelector(".ecom-g-select-selection-item");
-      const text = (display && (display.getAttribute("title") || getText(display))) || "";
-      if (/^\d+\s*条\/页$/.test(text)) {
-        return text;
-      }
-    }
-    return "";
-  }
-
-  function getDialogPageSizeNumber() {
-    const text = getDialogPageSizeText();
-    const match = text.match(/(\d+)\s*条\/页/);
-    if (match) {
-      return parseInt(match[1], 10);
-    }
-    return null;
-  }
-
   function getEstimatedCurrentDialogPageSize() {
-    const pageSize = getDialogPageSizeNumber();
-    if (pageSize && pageSize > 0) {
-      return pageSize;
-    }
-    const selectableCount = getSelectableRowCountInDialog();
-    if (selectableCount >= 10) {
-      return selectableCount;
-    }
-    return state.lastDialogPageSize || 10;
+    return DEFAULT_DIALOG_PAGE_SIZE;
   }
 
   function buildDialogCursorPatch(pageNumber) {
@@ -1367,197 +1249,6 @@
     return patch;
   }
 
-  function findDialogPageSizeTrigger() {
-    const selectRoot = findDialogPageSizeSelectRoot();
-    if (selectRoot) {
-      const exactTrigger = selectRoot.querySelector(".ecom-g-select-selector");
-      if (exactTrigger && isElementVisible(exactTrigger)) {
-        return exactTrigger;
-      }
-    }
-
-    const candidates = [];
-    const dialogRoot = getOptimizeDialogRoot();
-    const dialogRect = dialogRoot ? dialogRoot.getBoundingClientRect() : null;
-    const scopes = getDialogSearchScopes();
-
-    for (let i = 0; i < scopes.length; i++) {
-      const nodes = scopes[i].querySelectorAll('button, a, [role="button"], div, span');
-      for (let j = 0; j < nodes.length; j++) {
-        const text = getText(nodes[j]);
-        if (!/^\d+\s*条\/页$/.test(text) || !isElementVisible(nodes[j])) {
-          continue;
-        }
-
-        let target = nodes[j];
-        let node = nodes[j];
-        for (let depth = 0; depth < 4 && node; depth++) {
-          if (
-            node.tagName === "BUTTON" ||
-            node.tagName === "A" ||
-            node.getAttribute("role") === "button" ||
-            typeof node.onclick === "function"
-          ) {
-            target = node;
-            break;
-          }
-          node = node.parentElement;
-        }
-
-        if (isElementVisible(target) && !isElementDisabled(target)) {
-          const rect = target.getBoundingClientRect();
-          if (dialogRect && !isRectInside(rect, dialogRect)) {
-            continue;
-          }
-          candidates.push({ node: target, rect: rect });
-        }
-      }
-    }
-
-    if (!candidates.length) {
-      return null;
-    }
-
-    candidates.sort(function (a, b) {
-      if (Math.abs(b.rect.bottom - a.rect.bottom) > 2) {
-        return b.rect.bottom - a.rect.bottom;
-      }
-      return b.rect.right - a.rect.right;
-    });
-
-    return candidates[0].node;
-  }
-
-  function findPageSizeOption(text, trigger) {
-    const selectRoot = trigger ? trigger.closest(".ecom-g-select") : findDialogPageSizeSelectRoot();
-    if (selectRoot) {
-      const exactOptions = selectRoot.querySelectorAll(".ecom-g-select-dropdown .ecom-g-select-item-option");
-      for (let i = 0; i < exactOptions.length; i++) {
-        const optionText =
-          exactOptions[i].getAttribute("title") ||
-          getText(exactOptions[i].querySelector(".ecom-g-select-item-option-content")) ||
-          getText(exactOptions[i]);
-        if (optionText === text && isElementVisible(exactOptions[i])) {
-          return exactOptions[i];
-        }
-      }
-    }
-
-    const scopes = getDialogSearchScopes();
-    const triggerRect = trigger ? trigger.getBoundingClientRect() : null;
-    const candidates = [];
-
-    for (let i = 0; i < scopes.length; i++) {
-      const nodes = scopes[i].querySelectorAll("li, button, div, span");
-      for (let j = 0; j < nodes.length; j++) {
-        if (getText(nodes[j]) !== text || !isElementVisible(nodes[j])) {
-          continue;
-        }
-
-        let target = nodes[j];
-        let node = nodes[j];
-        for (let depth = 0; depth < 4 && node; depth++) {
-          if (
-            node.tagName === "BUTTON" ||
-            node.tagName === "A" ||
-            node.getAttribute("role") === "button" ||
-            typeof node.onclick === "function" ||
-            node.tagName === "LI"
-          ) {
-            target = node;
-            break;
-          }
-          node = node.parentElement;
-        }
-
-        const rect = target.getBoundingClientRect();
-        if (triggerRect) {
-          if (Math.abs(rect.left - triggerRect.left) > 120 && Math.abs(rect.right - triggerRect.right) > 120) {
-            continue;
-          }
-          if (rect.top >= triggerRect.top && rect.left === triggerRect.left && rect.width === triggerRect.width) {
-            continue;
-          }
-        }
-        candidates.push({ node: target, rect: rect });
-      }
-    }
-
-    if (!candidates.length) {
-      return null;
-    }
-
-    candidates.sort(function (a, b) {
-      if (!triggerRect) {
-        return a.rect.top - b.rect.top;
-      }
-      const aDistance = Math.abs(triggerRect.top - a.rect.bottom);
-      const bDistance = Math.abs(triggerRect.top - b.rect.bottom);
-      if (Math.abs(aDistance - bDistance) > 2) {
-        return aDistance - bDistance;
-      }
-      return b.rect.left - a.rect.left;
-    });
-
-    return candidates[0].node;
-  }
-
-  async function ensureDialogPageSize() {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      const beforeCount = getSelectableRowCountInDialog();
-      if (beforeCount >= 15) {
-        log("当前分页条数已足够，当前可勾选行数：" + beforeCount);
-        return;
-      }
-
-      const trigger = findDialogPageSizeTrigger();
-      if (!trigger) {
-        log("未找到弹窗分页条数入口，继续使用当前分页");
-        return;
-      }
-
-      const currentText = getText(trigger);
-      log("当前弹窗分页条数入口：" + (currentText || "未识别") + "（第 " + attempt + " 次尝试）");
-
-      const selectRoot = findDialogPageSizeSelectRoot();
-      const opened = await openDialogPageSizeDropdown(selectRoot, trigger);
-      if (!opened) {
-        log("分页条数下拉未成功展开，继续尝试键盘方式");
-      }
-
-      const option20 = findPageSizeOption("20 条/页", trigger);
-      if (option20) {
-        const optionContent = option20.querySelector(".ecom-g-select-item-option-content") || option20;
-        activateElement(optionContent);
-      } else {
-        log("未直接找到 20 条/页 选项，尝试键盘选择");
-        await selectDialogPageSizeByKeyboard(selectRoot);
-      }
-      await sleep(1800);
-
-      const afterCount = getSelectableRowCountInDialog();
-      const appliedText = getText(findDialogPageSizeTrigger() || null);
-      log("分页条数切换后入口显示：" + (appliedText || "未识别") + "，可勾选行数：" + afterCount);
-      const pageSizeApplied = appliedText.indexOf("20 条/页") !== -1;
-      const rowCountApplied = afterCount >= 15;
-      if (pageSizeApplied && rowCountApplied) {
-        log("已切换为 20 条/页");
-        return;
-      }
-      if (pageSizeApplied && !rowCountApplied) {
-        log(
-          "入口已显示 20 条/页，但当前页仍只有 " +
-            afterCount +
-            " 条（切换前 " +
-            beforeCount +
-            " 条），判定为未生效"
-        );
-      }
-    }
-
-    log("20 条/页 可能未生效，继续按当前分页执行");
-  }
-
   async function waitForDialogTableReady(timeout) {
     const maxWait = timeout || 8000;
     const start = Date.now();
@@ -1565,10 +1256,9 @@
       const rowCount = getSelectableRowCountInDialog();
       const tableRowCount = getDialogTableRowCount();
       const selected = getSelectedCountInDialog();
-      const hasPageSizeTrigger = !!findDialogPageSizeTrigger();
       const loading = isDialogLoading();
       const hasSelectionState = selected !== null;
-      if (!loading && (rowCount > 0 || hasSelectionState || (hasPageSizeTrigger && tableRowCount > 0))) {
+      if (!loading && (rowCount > 0 || hasSelectionState || tableRowCount > 0)) {
         await sleep(300);
         return true;
       }
@@ -1708,36 +1398,6 @@
     return false;
   }
 
-  async function ensureDialogPageSizeOnCurrentPage(reason) {
-    const pageSizeText = getDialogPageSizeText();
-    const rowCount = getSelectableRowCountInDialog();
-    if (pageSizeText.indexOf("20 条/页") !== -1 && rowCount >= 15) {
-      return true;
-    }
-
-    log(
-      (reason || "当前页检测到分页条数可能回退") +
-        "，入口：" +
-        (pageSizeText || "未识别") +
-        "，可勾选行数：" +
-        rowCount
-    );
-    await waitForDialogTableReady(5000);
-    await ensureDialogPageSize();
-    const pageAfterResize = getCurrentDialogPageNumber();
-    const targetPageAfterResize = state.lastDialogOffset
-      ? Math.floor(state.lastDialogOffset / getEstimatedCurrentDialogPageSize()) + 1
-      : state.lastDialogPage || 1;
-    if (targetPageAfterResize > 1 && pageAfterResize !== targetPageAfterResize) {
-      log("切换分页条数后页码发生变化，重新恢复到第 " + targetPageAfterResize + " 页");
-      await restoreDialogPosition();
-    } else if (pageAfterResize !== null) {
-      await syncRuntime(buildDialogCursorPatch(pageAfterResize));
-    }
-    log((reason || "当前页") + "后再次确认可勾选行数：" + getSelectableRowCountInDialog());
-    return getSelectableRowCountInDialog() >= 15;
-  }
-
   async function ensureBatchSelectionTarget() {
     const pendingInDialog = getDialogPendingCount();
     const target = pendingInDialog === null ? settings.batchTargetCount : Math.min(settings.batchTargetCount, pendingInDialog);
@@ -1749,7 +1409,6 @@
     if (!dialogReady) {
       log("弹窗表格准备超时，继续尝试当前页面结构");
     }
-    await ensureDialogPageSize();
     log("当前弹窗可勾选行数：" + getSelectableRowCountInDialog());
     const currentDialogPageBeforeRestore = getCurrentDialogPageNumber();
     let selected = await waitDialogSelectionReady();
@@ -1779,7 +1438,6 @@
     } else {
       log("当前弹窗页码未识别，按已记录游标继续：" + (state.lastDialogPage || 1));
     }
-    await ensureDialogPageSizeOnCurrentPage("恢复页码后检测到分页条数可能回退");
 
     const firstRemaining = selected === null ? target : Math.max(target - selected, 0);
     const firstSelectCount = await selectVisibleRowsInDialog(firstRemaining);
@@ -1790,7 +1448,9 @@
     }
 
     let guard = 0;
+    let stagnantNextPageHits = 0;
     while ((selected === null || selected < target) && guard < 200) {
+      const pageBeforeNext = getCurrentDialogPageNumber();
       const nextPageBtn = findDialogNextPageButton();
       if (!nextPageBtn) {
         log("未找到弹窗内下一页按钮，停止翻页");
@@ -1815,7 +1475,6 @@
         await syncRuntime(buildDialogCursorPatch((state.lastDialogPage || 1) + 1));
       }
       const remaining = oldSelected === null ? target : Math.max(target - oldSelected, 0);
-      await ensureDialogPageSizeOnCurrentPage("翻页后检测到分页条数可能回退");
       const selectedThisPage = await selectVisibleRowsInDialog(remaining);
       if (selectedThisPage > 0) {
         await sleep(300);
@@ -1831,6 +1490,31 @@
             "，游标页：" +
             (state.lastDialogPage || "未知")
         );
+      }
+
+      const currentPageCapacity = getEstimatedCurrentDialogPageSize();
+      const currentVisibleSelectable = getSelectableRowCountInDialog();
+      const pageDidNotChange =
+        pageBeforeNext !== null && currentDialogPage !== null && pageBeforeNext === currentDialogPage;
+      const noSelectionGrowth = oldSelected !== null && selected !== null && selected <= oldSelected;
+      const looksLikeTailPage =
+        currentVisibleSelectable > 0 && currentVisibleSelectable < currentPageCapacity;
+      if (pageDidNotChange && noSelectionGrowth) {
+        stagnantNextPageHits += 1;
+      } else {
+        stagnantNextPageHits = 0;
+      }
+      if ((pageDidNotChange && noSelectionGrowth && looksLikeTailPage) || stagnantNextPageHits >= 2) {
+        exhausted = true;
+        exhaustedReason = stagnantNextPageHits >= 2 ? "连续翻页无变化" : "翻页无变化且已到尾页";
+        log(
+          "检测到翻页后页码未变化且无新增可选项，视为已到最后一页（当前页 " +
+            currentDialogPage +
+            "，可勾选 " +
+            currentVisibleSelectable +
+            "）"
+        );
+        break;
       }
 
       // selected 不增长时避免死循环
@@ -2082,6 +1766,7 @@
     const selection = await ensureBatchSelectionTarget();
     if (selection.selectedCount === null || selection.selectedCount <= 0) {
       if (selection.exhausted) {
+        await markTaskCompletion("任务完成：弹窗已到最后一页，且无更多可选商品");
         log("弹窗已到末尾且无更多可选商品，视为任务完成");
         return { finished: true, submitted: false };
       }
@@ -2144,6 +1829,10 @@
       return { finished: false, submitted: true };
     }
 
+    if (selection.exhausted) {
+      await markTaskCompletion("任务完成：最后一批数量不足目标值，已完成提交且无更多可选商品");
+    }
+
     await returnToListPage();
     await sleep(2000);
     return { finished: !!selection.exhausted, submitted: true };
@@ -2183,6 +1872,13 @@
       await rememberListPosition();
 
       await reconcileCompletedBatchIfNeeded();
+
+      if (state.pendingTaskCompletion) {
+        const completionReason = state.pendingTaskCompletion.reason || "任务完成";
+        state.pendingTaskCompletion = null;
+        log(completionReason);
+        break;
+      }
 
       const pending = getPendingCount();
       if (pending === 0) {
@@ -2337,7 +2033,10 @@
       setTimeout(function () {
         getPendingCount();
       }, 1200);
-      if (state.pendingStart && isOnListPage()) {
+      if (state.pendingTaskCompletion && state.isRunning) {
+        log("检测到上一轮任务已完成，正在做结束收尾");
+        startMainLoop();
+      } else if (state.pendingStart && isOnListPage()) {
         log("检测到待启动任务，已进入商品管理页，准备自动启动");
         startMainLoop();
       } else if (state.pendingStart && !isOnListPage()) {

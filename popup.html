@@ -13,18 +13,18 @@
     
     body {
       width: 360px;
-      padding: 16px;
+      padding: 12px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
       color: #f8fafc;
     }
 
     .header {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .header h1 {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 700;
       color: #f8fafc;
       margin-bottom: 0;
@@ -34,25 +34,18 @@
       background: rgba(15, 23, 42, 0.34);
       border: 1px solid rgba(148, 163, 184, 0.14);
       border-radius: 14px;
-      padding: 14px;
-      margin-bottom: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
       box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
       backdrop-filter: blur(10px);
-    }
-
-    .card-title {
-      font-size: 14px;
-      font-weight: 700;
-      color: #f8fafc;
-      margin-bottom: 12px;
     }
 
     .field {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
+      gap: 10px;
+      margin-bottom: 8px;
     }
 
     .field:last-child {
@@ -68,7 +61,7 @@
     .input,
     .select {
       width: 112px;
-      padding: 8px 10px;
+      padding: 7px 10px;
       border: 1px solid rgba(148, 163, 184, 0.24);
       border-radius: 10px;
       background: rgba(255, 255, 255, 0.1);
@@ -152,7 +145,7 @@
     }
 
     .advanced-body {
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
     .advanced-body[hidden] {
@@ -176,11 +169,16 @@
       gap: 10px;
     }
 
+    .card-actions {
+      padding-top: 10px;
+      padding-bottom: 10px;
+    }
+
     .btn {
       flex: 1;
       border: none;
       border-radius: 12px;
-      padding: 11px 14px;
+      padding: 10px 14px;
       font-size: 14px;
       font-weight: 700;
       cursor: pointer;
@@ -204,7 +202,12 @@
     .status {
       font-size: 12px;
       color: #dcfce7;
-      min-height: 18px;
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    .status:empty {
+      display: none;
     }
   </style>
 </head>
@@ -214,7 +217,6 @@
   </div>
 
   <div class="card">
-    <div class="card-title">基础设置</div>
     <div class="field">
       <label for="batchTargetCount">批次大小</label>
       <input class="input" id="batchTargetCount" type="number" min="1" max="500">
@@ -246,7 +248,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card card-actions">
     <div class="actions">
       <button class="btn btn-secondary" id="resetDefaults" type="button">恢复默认</button>
       <button class="btn btn-primary" id="saveSettings" type="button">保存设置</button>
