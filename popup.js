@@ -1,196 +1,189 @@
-// 抖店批量属性优化助手 - Popup Script
-console.log('[Popup] 脚本已加载');
+const SETTINGS_KEY = "douyin_optimizer_settings";
 
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('[Popup] DOM已加载');
-  
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const statusBadge = document.getElementById('statusBadge');
-  const batchCountEl = document.getElementById('batchCount');
-  const totalOptimizedEl = document.getElementById('totalOptimized');
-  const pendingCountEl = document.getElementById('pendingCount');
-  const logList = document.getElementById('logList');
-  
-  let logs = [];
-  let isConnected = false;
-  
-  // 更新状态显示
-  function updateStatus(status) {
-    console.log('[Popup] 更新状态:', status);
-    
-    if (status.isRunning) {
-      statusBadge.textContent = '运行中';
-      statusBadge.className = 'status-badge running';
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
+const DEFAULT_SETTINGS = {
+  batchTargetCount: 500,
+  intervalSeconds: 3,
+  maxRetries: 3,
+  recordWaitTimeoutSeconds: 480,
+  showFloatingPanel: true,
+  panelOpacity: 72,
+  autoResumeTask: true,
+  logRetentionCount: 20
+};
+
+document.addEventListener("DOMContentLoaded", function () {
+  const els = {
+    batchTargetCount: document.getElementById("batchTargetCount"),
+    intervalSeconds: document.getElementById("intervalSeconds"),
+    maxRetries: document.getElementById("maxRetries"),
+    recordWaitTimeoutSeconds: document.getElementById("recordWaitTimeoutSeconds"),
+    logRetentionCount: document.getElementById("logRetentionCount"),
+    resetDefaults: document.getElementById("resetDefaults"),
+    saveSettings: document.getElementById("saveSettings"),
+    statusText: document.getElementById("statusText"),
+    advancedToggle: document.getElementById("advancedToggle"),
+    advancedBody: document.getElementById("advancedBody"),
+    advancedArrow: document.getElementById("advancedArrow")
+  };
+
+  let currentSettings = Object.assign({}, DEFAULT_SETTINGS);
+
+  function isDouyinListLikeUrl(url) {
+    return typeof url === "string" && url.indexOf("https://fxg.jinritemai.com/") === 0;
+  }
+
+  function getActiveTab() {
+    return new Promise(function (resolve) {
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        resolve(tabs && tabs.length ? tabs[0] : null);
+      });
+    });
+  }
+
+  function sendTabMessage(tabId, payload) {
+    return new Promise(function (resolve, reject) {
+      chrome.tabs.sendMessage(tabId, payload, function (response) {
+        if (chrome.runtime.lastError) {
+          reject(chrome.runtime.lastError);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  function injectContentScript(tabId) {
+    return new Promise(function (resolve, reject) {
+      chrome.scripting.executeScript(
+        {
+          target: { tabId: tabId },
+          files: ["content.js"]
+        },
+        function () {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+            return;
+          }
+          resolve(true);
+        }
+      );
+    });
+  }
+
+  async function ensureActiveTabPanelReady() {
+    const tab = await getActiveTab();
+    if (!tab || !tab.id || !isDouyinListLikeUrl(tab.url)) {
+      return;
+    }
+
+    try {
+      await sendTabMessage(tab.id, { action: "ensurePanel" });
+    } catch (error) {
+      await injectContentScript(tab.id);
+      setTimeout(function () {
+        sendTabMessage(tab.id, { action: "ensurePanel" }).catch(function () {});
+      }, 250);
+    }
+  }
+
+  function setStatus(text) {
+    els.statusText.textContent = text || "";
+  }
+
+  function getMergedSettings(raw) {
+    return sanitizeSettings(Object.assign({}, DEFAULT_SETTINGS, raw || {}));
+  }
+
+  function renderForm(settings) {
+    els.batchTargetCount.value = settings.batchTargetCount;
+    els.intervalSeconds.value = settings.intervalSeconds;
+    els.maxRetries.value = settings.maxRetries;
+    els.recordWaitTimeoutSeconds.value = settings.recordWaitTimeoutSeconds;
+    els.logRetentionCount.value = settings.logRetentionCount;
+  }
+
+  function readForm() {
+    return {
+      batchTargetCount: clampInt(els.batchTargetCount.value, 1, 500, DEFAULT_SETTINGS.batchTargetCount),
+      intervalSeconds: clampInt(els.intervalSeconds.value, 1, 20, DEFAULT_SETTINGS.intervalSeconds),
+      maxRetries: clampInt(els.maxRetries.value, 0, 20, DEFAULT_SETTINGS.maxRetries),
+      recordWaitTimeoutSeconds: clampInt(
+        els.recordWaitTimeoutSeconds.value,
+        30,
+        3600,
+        DEFAULT_SETTINGS.recordWaitTimeoutSeconds
+      ),
+      logRetentionCount: clampInt(els.logRetentionCount.value, 5, 200, DEFAULT_SETTINGS.logRetentionCount)
+    };
+  }
+
+  function clampInt(value, min, max, fallback) {
+    const num = parseInt(value, 10);
+    if (Number.isNaN(num)) {
+      return fallback;
+    }
+    return Math.min(Math.max(num, min), max);
+  }
+
+  function sanitizeSettings(raw) {
+    return {
+      batchTargetCount: clampInt(raw.batchTargetCount, 1, 500, DEFAULT_SETTINGS.batchTargetCount),
+      intervalSeconds: clampInt(raw.intervalSeconds, 1, 20, DEFAULT_SETTINGS.intervalSeconds),
+      maxRetries: clampInt(raw.maxRetries, 0, 20, DEFAULT_SETTINGS.maxRetries),
+      recordWaitTimeoutSeconds: clampInt(
+        raw.recordWaitTimeoutSeconds,
+        30,
+        3600,
+        DEFAULT_SETTINGS.recordWaitTimeoutSeconds
+      ),
+      showFloatingPanel: typeof raw.showFloatingPanel === "boolean" ? raw.showFloatingPanel : DEFAULT_SETTINGS.showFloatingPanel,
+      panelOpacity: clampInt(raw.panelOpacity, 40, 95, DEFAULT_SETTINGS.panelOpacity),
+      autoResumeTask: typeof raw.autoResumeTask === "boolean" ? raw.autoResumeTask : DEFAULT_SETTINGS.autoResumeTask,
+      logRetentionCount: clampInt(raw.logRetentionCount, 5, 200, DEFAULT_SETTINGS.logRetentionCount)
+    };
+  }
+
+  function loadSettings() {
+    chrome.storage.local.get([SETTINGS_KEY], function (result) {
+      currentSettings = getMergedSettings(result && result[SETTINGS_KEY]);
+      renderForm(currentSettings);
+    });
+  }
+
+  function saveSettings(settings) {
+    const sanitized = sanitizeSettings(settings);
+    chrome.storage.local.set({ [SETTINGS_KEY]: sanitized }, function () {
+      currentSettings = sanitized;
+      renderForm(currentSettings);
+      setStatus("设置已保存");
+      setTimeout(function () {
+        window.close();
+      }, 120);
+    });
+  }
+
+  els.advancedToggle.addEventListener("click", function () {
+    const hidden = els.advancedBody.hasAttribute("hidden");
+    if (hidden) {
+      els.advancedBody.removeAttribute("hidden");
+      els.advancedArrow.textContent = "∧";
     } else {
-      statusBadge.textContent = '已停止';
-      statusBadge.className = 'status-badge stopped';
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-    }
-    
-    batchCountEl.textContent = status.batchCount || 0;
-    totalOptimizedEl.textContent = status.totalOptimized || 0;
-    pendingCountEl.textContent = status.pendingCount !== undefined ? status.pendingCount : '-';
-  }
-  
-  // 添加日志
-  function addLog(message) {
-    console.log('[Popup] 日志:', message);
-    logs.unshift(message);
-    if (logs.length > 20) {
-      logs.pop();
-    }
-    renderLogs();
-  }
-  
-  // 渲染日志
-  function renderLogs() {
-    if (logList) {
-      logList.innerHTML = logs.map(log => 
-        `<div class="log-item">${log}</div>`
-      ).join('');
-    }
-  }
-  
-  // 获取当前标签页
-  async function getCurrentTab() {
-    try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      return tabs[0];
-    } catch (error) {
-      console.error('[Popup] 获取标签页失败:', error);
-      return null;
-    }
-  }
-  
-  // 检查是否在正确的页面
-  async function checkPage() {
-    const tab = await getCurrentTab();
-    if (!tab) {
-      addLog('❌ 无法获取当前页面');
-      return false;
-    }
-    
-    console.log('[Popup] 当前页面:', tab.url);
-    
-    if (!tab.url || !tab.url.includes('fxg.jinritemai.com')) {
-      addLog('❌ 请在抖店商品管理页面使用本插件');
-      addLog('当前页面: ' + (tab.url || '未知'));
-      return false;
-    }
-    
-    return tab;
-  }
-  
-  // 开始优化
-  startBtn.addEventListener('click', async function() {
-    console.log('[Popup] 点击开始按钮');
-    
-    const tab = await checkPage();
-    if (!tab) {
-      alert('请先在浏览器中打开抖店商品管理页面！\n\nURL: https://fxg.jinritemai.com/ffa/g/list');
-      return;
-    }
-    
-    try {
-      addLog('🚀 正在发送开始指令...');
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'start' });
-      console.log('[Popup] 收到响应:', response);
-      
-      if (response && response.status === 'started') {
-        addLog('✅ 已开始优化');
-        updateStatus({ isRunning: true, batchCount: 0, totalOptimized: 0 });
-      } else if (response && response.status === 'already_running') {
-        addLog('⚠️ 优化已在运行中');
-      } else {
-        addLog('❌ 启动失败: ' + (response ? JSON.stringify(response) : '无响应'));
-      }
-    } catch (error) {
-      console.error('[Popup] 启动失败:', error);
-      addLog('❌ 启动失败: ' + error.message);
-      addLog('💡 提示: 请刷新页面后重试');
+      els.advancedBody.setAttribute("hidden", "hidden");
+      els.advancedArrow.textContent = "∨";
     }
   });
-  
-  // 停止优化
-  stopBtn.addEventListener('click', async function() {
-    console.log('[Popup] 点击停止按钮');
-    
-    const tab = await checkPage();
-    if (!tab) return;
-    
-    try {
-      addLog('🛑 正在发送停止指令...');
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'stop' });
-      console.log('[Popup] 收到响应:', response);
-      
-      if (response && response.status === 'stopped') {
-        addLog('🛑 已停止优化');
-        updateStatus({ isRunning: false, batchCount: 0, totalOptimized: 0 });
-      }
-    } catch (error) {
-      console.error('[Popup] 停止失败:', error);
-      addLog('❌ 停止失败: ' + error.message);
-    }
+
+  els.resetDefaults.addEventListener("click", function () {
+    currentSettings = Object.assign({}, DEFAULT_SETTINGS);
+    renderForm(currentSettings);
+    setStatus("已恢复默认值，点击保存后生效");
   });
-  
-  // 监听来自content script的消息
-  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    console.log('[Popup] 收到消息:', request);
-    
-    if (request.type === 'log') {
-      addLog(request.message);
-    } else if (request.type === 'progress') {
-      updateStatus({
-        isRunning: true,
-        batchCount: request.batchCount,
-        totalOptimized: request.totalOptimized,
-        pendingCount: request.pendingCount
-      });
-    } else if (request.type === 'complete') {
-      addLog(`🎉 优化完成！共处理 ${request.batchCount} 批`);
-      updateStatus({ 
-        isRunning: false, 
-        batchCount: request.batchCount, 
-        totalOptimized: request.totalOptimized 
-      });
-    }
-    
-    sendResponse({ received: true });
-    return true;
+
+  els.saveSettings.addEventListener("click", function () {
+    const nextSettings = Object.assign({}, currentSettings, readForm());
+    saveSettings(nextSettings);
   });
-  
-  // 定期获取状态
-  async function pollStatus() {
-    const tab = await checkPage();
-    if (!tab) {
-      updateStatus({ isRunning: false, batchCount: 0, totalOptimized: 0, pendingCount: '-' });
-      return;
-    }
-    
-    try {
-      const response = await chrome.tabs.sendMessage(tab.id, { action: 'getStatus' });
-      console.log('[Popup] 状态轮询:', response);
-      if (response) {
-        updateStatus(response);
-      }
-    } catch (error) {
-      // 忽略错误，content script 可能还没加载
-      console.log('[Popup] 状态轮询失败:', error.message);
-    }
-  }
-  
-  // 初始化
-  addLog('🚀 抖店批量属性优化助手已就绪');
-  addLog('请打开抖店商品管理页面');
-  addLog('然后点击"开始优化"按钮');
-  
-  // 立即检查一次状态
-  pollStatus();
-  
-  // 定期轮询状态
-  setInterval(pollStatus, 2000);
+
+  loadSettings();
+  ensureActiveTabPanelReady().catch(function () {});
 });

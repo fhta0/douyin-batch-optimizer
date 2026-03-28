@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>抖店批量属性优化助手</title>
+  <title>抖店批量优化助手(设置中心)-v1.0.1</title>
   <style>
     * {
       margin: 0;
@@ -13,203 +13,247 @@
     
     body {
       width: 360px;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+      color: #f8fafc;
     }
-    
+
     .header {
-      text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
-    
+
     .header h1 {
       font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 5px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 0;
     }
-    
-    .header p {
-      font-size: 12px;
-      opacity: 0.9;
-    }
-    
-    .status-card {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 15px;
+
+    .card {
+      background: rgba(15, 23, 42, 0.34);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
       backdrop-filter: blur(10px);
     }
-    
-    .status-item {
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 12px;
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .field label {
+      font-size: 13px;
+      color: rgba(248, 250, 252, 0.9);
+      flex: 1;
+    }
+
+    .input,
+    .select {
+      width: 112px;
+      padding: 8px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #f8fafc;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .input::placeholder,
+    .select::placeholder {
+      color: rgba(226, 232, 240, 0.72);
+    }
+
+    .input:focus,
+    .select:focus {
+      border-color: rgba(191, 219, 254, 0.92);
+      box-shadow: 0 0 0 3px rgba(191, 219, 254, 0.16);
+    }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.24);
+      transition: 0.2s ease;
+      cursor: pointer;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: #fff;
+      transition: 0.2s ease;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+    }
+
+    .switch input:checked + .slider {
+      background: #60a5fa;
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    .section-note {
+      font-size: 12px;
+      color: rgba(226, 232, 240, 0.8);
+      line-height: 1.6;
+    }
+
+    .advanced-toggle {
+      width: 100%;
+      border: none;
+      background: transparent;
+      padding: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
-    }
-    
-    .status-item:last-child {
-      margin-bottom: 0;
-    }
-    
-    .status-label {
-      font-size: 13px;
-      opacity: 0.9;
-    }
-    
-    .status-value {
       font-size: 14px;
-      font-weight: 600;
-    }
-    
-    .status-badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 500;
-    }
-    
-    .status-badge.running {
-      background: #52c41a;
-    }
-    
-    .status-badge.stopped {
-      background: #ff4d4f;
-    }
-    
-    .btn-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 15px;
-    }
-    
-    .btn {
-      flex: 1;
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
+      color: #f8fafc;
       cursor: pointer;
-      transition: all 0.3s ease;
     }
-    
-    .btn-primary {
-      background: #fff;
-      color: #667eea;
+
+    .advanced-body {
+      margin-top: 12px;
     }
-    
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+
+    .advanced-body[hidden] {
+      display: none;
     }
-    
-    .btn-danger {
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
-    }
-    
-    .btn-danger:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-    
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
-    }
-    
-    .log-container {
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-      padding: 10px;
-      max-height: 150px;
-      overflow-y: auto;
-    }
-    
-    .log-title {
+
+    .link-btn {
+      border: none;
+      background: rgba(255, 255, 255, 0.14);
+      color: #eff6ff;
+      border-radius: 10px;
+      padding: 8px 12px;
       font-size: 12px;
       font-weight: 600;
-      margin-bottom: 8px;
-      opacity: 0.9;
+      cursor: pointer;
+      white-space: nowrap;
     }
-    
-    .log-item {
-      font-size: 11px;
-      padding: 4px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      word-break: break-all;
+
+    .actions {
+      display: flex;
+      gap: 10px;
     }
-    
-    .log-item:last-child {
-      border-bottom: none;
+
+    .btn {
+      flex: 1;
+      border: none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
     }
-    
-    .footer {
-      text-align: center;
-      margin-top: 15px;
-      font-size: 11px;
-      opacity: 0.7;
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.14);
+      color: #f8fafc;
     }
-    
-    /* 滚动条样式 */
-    .log-container::-webkit-scrollbar {
-      width: 4px;
+
+    .btn-primary {
+      background: rgba(255, 255, 255, 0.94);
+      color: #2563eb;
     }
-    
-    .log-container::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
+
+    .btn:hover,
+    .link-btn:hover {
+      filter: brightness(1.04);
     }
-    
-    .log-container::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
+
+    .status {
+      font-size: 12px;
+      color: #dcfce7;
+      min-height: 18px;
     }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>🚀 抖店批量属性优化助手</h1>
-    <p>自动批量优化商品属性，提升曝光</p>
+    <h1>抖店批量优化助手(设置中心)-v1.0.1</h1>
   </div>
-  
-  <div class="status-card">
-    <div class="status-item">
-      <span class="status-label">运行状态</span>
-      <span class="status-badge stopped" id="statusBadge">已停止</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">已处理批次</span>
-      <span class="status-value" id="batchCount">0</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">已优化商品</span>
-      <span class="status-value" id="totalOptimized">0</span>
-    </div>
-    <div class="status-item">
-      <span class="status-label">待优化商品</span>
-      <span class="status-value" id="pendingCount">-</span>
+
+  <div class="card">
+    <div class="card-title">基础设置</div>
+    <div class="field">
+      <label for="batchTargetCount">批次大小</label>
+      <input class="input" id="batchTargetCount" type="number" min="1" max="500">
     </div>
   </div>
-  
-  <div class="btn-group">
-    <button class="btn btn-primary" id="startBtn">开始优化</button>
-    <button class="btn btn-danger" id="stopBtn" disabled>停止</button>
+
+  <div class="card">
+    <button class="advanced-toggle" id="advancedToggle" type="button">
+      <span>高级设置</span>
+      <span id="advancedArrow">∨</span>
+    </button>
+    <div class="advanced-body" id="advancedBody" hidden>
+      <div class="field">
+        <label for="intervalSeconds">批间间隔(秒)</label>
+        <input class="input" id="intervalSeconds" type="number" min="1" max="20">
+      </div>
+      <div class="field">
+        <label for="maxRetries">重试次数</label>
+        <input class="input" id="maxRetries" type="number" min="0" max="20">
+      </div>
+      <div class="field">
+        <label for="recordWaitTimeoutSeconds">记录页超时(秒)</label>
+        <input class="input" id="recordWaitTimeoutSeconds" type="number" min="30" max="3600">
+      </div>
+      <div class="field">
+        <label for="logRetentionCount">日志保留条数</label>
+        <input class="input" id="logRetentionCount" type="number" min="5" max="200">
+      </div>
+    </div>
   </div>
-  
-  <div class="log-container" id="logContainer">
-    <div class="log-title">📋 运行日志</div>
-    <div id="logList"></div>
+
+  <div class="card">
+    <div class="actions">
+      <button class="btn btn-secondary" id="resetDefaults" type="button">恢复默认</button>
+      <button class="btn btn-primary" id="saveSettings" type="button">保存设置</button>
+    </div>
+    <div class="status" id="statusText"></div>
   </div>
-  
-  <div class="footer">
-    请确保当前页面为抖店商品管理页面
-  </div>
-  
+
   <script src="popup.js"></script>
 </body>
 </html>
