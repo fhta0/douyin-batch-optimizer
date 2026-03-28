@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>抖店批量属性优化助手 - 安装指南</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      text-align: center;
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .step {
+      margin-bottom: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border-left: 4px solid #667eea;
+    }
+    .step-number {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 30px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .step-title {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .step-content {
+      color: #555;
+      line-height: 1.6;
+    }
+    .warning {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    .warning-title {
+      color: #856404;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    code {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .btn {
+      display: inline-block;
+      background: #667eea;
+      color: white;
+      padding: 12px 30px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    .icon-preview {
+      text-align: center;
+      margin: 30px 0;
+    }
+    .icon-preview svg {
+      width: 128px;
+      height: 128px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .canvas-container {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 抖店批量属性优化助手</h1>
+    <p class="subtitle">Chrome插件安装指南</p>
+    
+    <div class="icon-preview">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" style="width: 128px; height: 128px;">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+          </linearGradient>
+        </defs>
+        <rect width="128" height="128" rx="20" fill="url(#grad)"/>
+        <text x="64" y="85" font-size="70" text-anchor="middle" fill="white" font-family="Arial" font-weight="bold">抖</text>
+      </svg>
+    </div>
+    
+    <div class="warning">
+      <div class="warning-title">⚠️ 重要提示</div>
+      <div>由于无法直接生成PNG图标文件，你需要手动创建图标或使用在线工具转换SVG为PNG。</div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">1</span>准备图标文件</div>
+      <div class="step-content">
+        <p>你需要创建3个PNG图标文件：</p>
+        <ul>
+          <li><code>icon16.png</code> - 16x16 像素</li>
+          <li><code>icon48.png</code> - 48x48 像素</li>
+          <li><code>icon128.png</code> - 128x128 像素</li>
+        </ul>
+        <p>可以使用在线工具转换上面的SVG为PNG：</p>
+        <a href="https://convertio.co/zh/svg-png/" target="_blank" class="btn">打开在线转换工具</a>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">2</span>打开Chrome扩展程序页面</div>
+      <div class="step-content">
+        <p>在Chrome浏览器地址栏输入：</p>
+        <code>chrome://extensions/</code>
+        <p>然后按回车键访问。</p>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">3</span>开启开发者模式</div>
+      <div class="step-content">
+        <p>在页面右上角找到"开发者模式"开关，将其打开。</p>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">4</span>加载插件</div>
+      <div class="step-content">
+        <p>点击"加载已解压的扩展程序"按钮。</p>
+        <p>在弹出的文件选择器中，选择 <code>douyin-batch-optimizer</code> 文件夹。</p>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">5</span>完成安装</div>
+      <div class="step-content">
+        <p>插件已成功安装！你会在扩展程序列表中看到"抖店批量属性优化助手"。</p>
+        <p>建议将插件固定到工具栏，方便使用。</p>
+      </div>
+    </div>
+    
+    <div class="step">
+      <div class="step-title"><span class="step-number">6</span>使用方法</div>
+      <div class="step-content">
+        <ol>
+          <li>在浏览器中打开抖店商品管理页面</li>
+          <li>点击插件图标</li>
+          <li>点击"开始优化"按钮</li>
+          <li>等待自动完成</li>
+        </ol>
+      </div>
+    </div>
+    
+    <div class="canvas-container">
+      <canvas id="canvas16" width="16" height="16"></canvas>
+      <canvas id="canvas48" width="48" height="48"></canvas>
+      <canvas id="canvas128" width="128" height="128"></canvas>
+    </div>
+  </div>
+  
+  <script>
+    // 自动生成图标（可选）
+    function generateIcons() {
+      const sizes = [16, 48, 128];
+      const svgData = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+        <defs>
+          <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#667eea"/>
+            <stop offset="100%" style="stop-color:#764ba2"/>
+          </linearGradient>
+        </defs>
+        <rect width="128" height="128" rx="20" fill="url(#grad)"/>
+        <text x="64" y="85" font-size="70" text-anchor="middle" fill="white" font-family="Arial" font-weight="bold">抖</text>
+      </svg>`;
+      
+      sizes.forEach(size => {
+        const canvas = document.getElementById(`canvas${size}`);
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = function() {
+          ctx.drawImage(img, 0, 0, size, size);
+          console.log(`Generated ${size}x${size} icon`);
+        };
+        img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+      });
+    }
+    
+    // 页面加载完成后生成图标
+    window.onload = generateIcons;
+  </script>
+</body>
+</html>

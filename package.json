@@ -1,0 +1,11 @@
+{
+  "name": "douyin-batch-optimizer",
+  "version": "1.0.0",
+  "description": "抖店批量属性优化助手",
+  "scripts": {
+    "generate-icons": "node generate-icons-node.js"
+  },
+  "dependencies": {
+    "canvas": "^2.11.2"
+  }
+}

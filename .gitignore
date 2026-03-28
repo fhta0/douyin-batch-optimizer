@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Runtime progress files
+doudian_attr_opt_progress.json
+
+# Generated icons (user can generate themselves)
+icon16.png
+icon48.png
+icon128.png
+
+# OS files
+.DS_Store
+Thumbs.db

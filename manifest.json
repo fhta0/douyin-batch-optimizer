@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "抖店批量属性优化助手",
+  "version": "1.0.0",
+  "description": "自动批量优化抖店商品属性，支持循环处理",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://fxg.jinritemai.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://fxg.jinritemai.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
