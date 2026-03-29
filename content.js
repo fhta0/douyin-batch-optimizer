@@ -30,6 +30,8 @@
     isRunning: false,
     pendingStart: false,
     stopRequested: false,
+    shopId: null,
+    shopName: null,
     batchCount: 0,
     totalOptimized: 0,
     startTime: null,
@@ -83,6 +85,94 @@
       return fallback;
     }
     return Math.min(Math.max(num, min), max);
+  }
+
+  function safeJsonParse(value) {
+    if (!value || typeof value !== "string") {
+      return null;
+    }
+    try {
+      return JSON.parse(value);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function extractShopIdFromCookie() {
+    const match = (document.cookie || "").match(/(?:^|;\s*)ecom_gray_shop_id=([^;]+)/);
+    return match && match[1] ? decodeURIComponent(match[1]) : null;
+  }
+
+  function getCurrentShopContext() {
+    const context = {
+      shopId: null,
+      shopName: null,
+      source: null
+    };
+
+    if (typeof window.__shop_id === "string" && window.__shop_id.trim()) {
+      context.shopId = window.__shop_id.trim();
+      context.source = "window.__shop_id";
+    }
+
+    const initialUserInfo = safeJsonParse(sessionStorage.getItem("initialUserInfo"));
+    if (!context.shopId && initialUserInfo && initialUserInfo.data && initialUserInfo.data.id) {
+      context.shopId = String(initialUserInfo.data.id);
+      context.source = "sessionStorage.initialUserInfo";
+    }
+    if (!context.shopName && initialUserInfo && initialUserInfo.data && initialUserInfo.data.shop_name) {
+      context.shopName = String(initialUserInfo.data.shop_name);
+    }
+
+    const storeGetters = safeJsonParse(sessionStorage.getItem("storeGetters"));
+    if (!context.shopId && storeGetters && storeGetters.user && storeGetters.user.id) {
+      context.shopId = String(storeGetters.user.id);
+      context.source = "sessionStorage.storeGetters";
+    }
+    if (!context.shopName && storeGetters && storeGetters.user && storeGetters.user.shop_name) {
+      context.shopName = String(storeGetters.user.shop_name);
+    }
+
+    if (!context.shopId) {
+      const cookieShopId = extractShopIdFromCookie();
+      if (cookieShopId) {
+        context.shopId = cookieShopId;
+        context.source = "cookie.ecom_gray_shop_id";
+      }
+    }
+
+    return context;
+  }
+
+  function getShopLogLabel() {
+    const shopId = state.shopId || "";
+    const shopName = state.shopName || "";
+    if (shopName && shopId) {
+      return shopName + "（" + shopId + "）";
+    }
+    if (shopName) {
+      return shopName;
+    }
+    if (shopId) {
+      return shopId;
+    }
+    return "未识别";
+  }
+
+  function hasRuntimeStatePayload() {
+    return !!(
+      state.isRunning ||
+      state.pendingStart ||
+      state.stopRequested ||
+      state.batchCount ||
+      state.totalOptimized ||
+      state.startTime ||
+      state.elapsedMs ||
+      state.lastKnownPending !== null ||
+      state.pendingBatchReconcile ||
+      state.pendingTaskCompletion ||
+      state.logs.length
+    );
   }
 
   function sanitizeSettings(raw) {
@@ -148,6 +238,8 @@
             isRunning: state.isRunning,
             pendingStart: state.pendingStart,
             stopRequested: state.stopRequested,
+            shopId: state.shopId,
+            shopName: state.shopName,
             batchCount: state.batchCount,
             totalOptimized: state.totalOptimized,
             startTime: state.startTime,
@@ -183,6 +275,8 @@
     state.isRunning = !!saved.isRunning;
     state.pendingStart = !!saved.pendingStart;
     state.stopRequested = !!saved.stopRequested;
+    state.shopId = saved.shopId || null;
+    state.shopName = saved.shopName || null;
     state.batchCount = saved.batchCount || 0;
     state.totalOptimized = saved.totalOptimized || 0;
     state.startTime = saved.startTime || null;
@@ -198,6 +292,69 @@
     state.logs = Array.isArray(saved.logs) ? saved.logs.slice(0, settings.logRetentionCount) : [];
     state.panelPosition = saved.panelPosition || null;
     renderFloatingPanel();
+  }
+
+  async function clearRuntimeForShopMismatch(reason, currentShopContext) {
+    const context = currentShopContext || getCurrentShopContext();
+    await syncRuntime({
+      isRunning: false,
+      pendingStart: false,
+      stopRequested: false,
+      shopId: context.shopId || null,
+      shopName: context.shopName || null,
+      batchCount: 0,
+      totalOptimized: 0,
+      startTime: null,
+      elapsedMs: 0,
+      lastKnownPending: null,
+      lastListUrl: CONFIG.listUrl,
+      lastListPage: null,
+      lastDialogPage: 1,
+      lastDialogPageSize: null,
+      lastDialogOffset: 0,
+      pendingBatchReconcile: null,
+      pendingTaskCompletion: null,
+      logs: []
+    });
+    if (reason) {
+      log(reason);
+      await writeRuntime();
+    }
+  }
+
+  async function ensureRuntimeShopContext() {
+    const currentShopContext = getCurrentShopContext();
+    if (!currentShopContext.shopId) {
+      return currentShopContext;
+    }
+
+    if (!state.shopId) {
+      if (hasRuntimeStatePayload()) {
+        await clearRuntimeForShopMismatch(
+          "检测到旧版运行态缺少店铺信息，已自动清理（当前店铺ID：" + currentShopContext.shopId + "）",
+          currentShopContext
+        );
+      } else {
+        state.shopId = currentShopContext.shopId;
+        state.shopName = currentShopContext.shopName || null;
+      }
+      return currentShopContext;
+    }
+
+    if (state.shopId !== currentShopContext.shopId) {
+      await clearRuntimeForShopMismatch(
+        "检测到跨店铺遗留运行态，已自动清理（旧店铺ID：" +
+          state.shopId +
+          "，当前店铺ID：" +
+          currentShopContext.shopId +
+          "）",
+        currentShopContext
+      );
+      return currentShopContext;
+    }
+
+    state.shopName = currentShopContext.shopName || state.shopName || null;
+    return currentShopContext;
   }
 
   async function syncRuntime(patch) {
@@ -455,7 +612,10 @@
   }
 
   function resetRunStateForStart() {
+    const currentShopContext = getCurrentShopContext();
     state.stopRequested = false;
+    state.shopId = currentShopContext.shopId || null;
+    state.shopName = currentShopContext.shopName || null;
     state.batchCount = 0;
     state.totalOptimized = 0;
     state.startTime = null;
@@ -1855,6 +2015,11 @@
   }
 
   async function mainLoop() {
+    const currentShopContext = getCurrentShopContext();
+    if (currentShopContext.shopId) {
+      state.shopId = currentShopContext.shopId;
+      state.shopName = currentShopContext.shopName || state.shopName || null;
+    }
     state.isRunning = true;
     state.stopRequested = false;
     if (!state.startTime) {
@@ -2026,9 +2191,11 @@
       return restoreRuntime();
     })
     .then(async function () {
+      await ensureRuntimeShopContext();
       renderFloatingPanel();
       startPendingSync();
       startElapsedTimer();
+      log("当前店铺：" + getShopLogLabel());
       log("content script 已加载");
       setTimeout(function () {
         getPendingCount();
@@ -2054,6 +2221,7 @@
       renderFloatingPanel();
       startPendingSync();
       startElapsedTimer();
+      log("当前店铺：" + getShopLogLabel());
       log("content script 已加载");
       setTimeout(function () {
         getPendingCount();
