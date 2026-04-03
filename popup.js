@@ -8,16 +8,26 @@ const DEFAULT_SETTINGS = {
   showFloatingPanel: true,
   panelOpacity: 72,
   autoResumeTask: true,
-  logRetentionCount: 20
+  logRetentionCount: 20,
+  attributeOptimizeEnabled: true,
+  qualityOptimizeEnabled: false,
+  editorPageTimeoutSeconds: 30,
+  generateTimeoutSeconds: 30,
+  publishTimeoutSeconds: 30
 };
 
 document.addEventListener("DOMContentLoaded", function () {
   const els = {
     batchTargetCount: document.getElementById("batchTargetCount"),
+    attributeOptimizeEnabled: document.getElementById("attributeOptimizeEnabled"),
+    qualityOptimizeEnabled: document.getElementById("qualityOptimizeEnabled"),
     intervalSeconds: document.getElementById("intervalSeconds"),
     maxRetries: document.getElementById("maxRetries"),
     recordWaitTimeoutSeconds: document.getElementById("recordWaitTimeoutSeconds"),
     logRetentionCount: document.getElementById("logRetentionCount"),
+    editorPageTimeoutSeconds: document.getElementById("editorPageTimeoutSeconds"),
+    generateTimeoutSeconds: document.getElementById("generateTimeoutSeconds"),
+    publishTimeoutSeconds: document.getElementById("publishTimeoutSeconds"),
     resetDefaults: document.getElementById("resetDefaults"),
     saveSettings: document.getElementById("saveSettings"),
     statusText: document.getElementById("statusText"),
@@ -96,15 +106,22 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function renderForm(settings) {
     els.batchTargetCount.value = settings.batchTargetCount;
+    els.attributeOptimizeEnabled.checked = settings.attributeOptimizeEnabled;
+    els.qualityOptimizeEnabled.checked = settings.qualityOptimizeEnabled;
     els.intervalSeconds.value = settings.intervalSeconds;
     els.maxRetries.value = settings.maxRetries;
     els.recordWaitTimeoutSeconds.value = settings.recordWaitTimeoutSeconds;
     els.logRetentionCount.value = settings.logRetentionCount;
+    els.editorPageTimeoutSeconds.value = settings.editorPageTimeoutSeconds;
+    els.generateTimeoutSeconds.value = settings.generateTimeoutSeconds;
+    els.publishTimeoutSeconds.value = settings.publishTimeoutSeconds;
   }
 
   function readForm() {
     return {
       batchTargetCount: clampInt(els.batchTargetCount.value, 1, 500, DEFAULT_SETTINGS.batchTargetCount),
+      attributeOptimizeEnabled: els.attributeOptimizeEnabled.checked,
+      qualityOptimizeEnabled: els.qualityOptimizeEnabled.checked,
       intervalSeconds: clampInt(els.intervalSeconds.value, 1, 20, DEFAULT_SETTINGS.intervalSeconds),
       maxRetries: clampInt(els.maxRetries.value, 0, 20, DEFAULT_SETTINGS.maxRetries),
       recordWaitTimeoutSeconds: clampInt(
@@ -113,7 +130,10 @@ document.addEventListener("DOMContentLoaded", function () {
         3600,
         DEFAULT_SETTINGS.recordWaitTimeoutSeconds
       ),
-      logRetentionCount: clampInt(els.logRetentionCount.value, 5, 200, DEFAULT_SETTINGS.logRetentionCount)
+      logRetentionCount: clampInt(els.logRetentionCount.value, 5, 200, DEFAULT_SETTINGS.logRetentionCount),
+      editorPageTimeoutSeconds: clampInt(els.editorPageTimeoutSeconds.value, 10, 120, DEFAULT_SETTINGS.editorPageTimeoutSeconds),
+      generateTimeoutSeconds: clampInt(els.generateTimeoutSeconds.value, 10, 120, DEFAULT_SETTINGS.generateTimeoutSeconds),
+      publishTimeoutSeconds: clampInt(els.publishTimeoutSeconds.value, 10, 120, DEFAULT_SETTINGS.publishTimeoutSeconds)
     };
   }
 
@@ -139,7 +159,12 @@ document.addEventListener("DOMContentLoaded", function () {
       showFloatingPanel: typeof raw.showFloatingPanel === "boolean" ? raw.showFloatingPanel : DEFAULT_SETTINGS.showFloatingPanel,
       panelOpacity: clampInt(raw.panelOpacity, 40, 95, DEFAULT_SETTINGS.panelOpacity),
       autoResumeTask: typeof raw.autoResumeTask === "boolean" ? raw.autoResumeTask : DEFAULT_SETTINGS.autoResumeTask,
-      logRetentionCount: clampInt(raw.logRetentionCount, 5, 200, DEFAULT_SETTINGS.logRetentionCount)
+      logRetentionCount: clampInt(raw.logRetentionCount, 5, 200, DEFAULT_SETTINGS.logRetentionCount),
+      attributeOptimizeEnabled: typeof raw.attributeOptimizeEnabled === "boolean" ? raw.attributeOptimizeEnabled : DEFAULT_SETTINGS.attributeOptimizeEnabled,
+      qualityOptimizeEnabled: typeof raw.qualityOptimizeEnabled === "boolean" ? raw.qualityOptimizeEnabled : DEFAULT_SETTINGS.qualityOptimizeEnabled,
+      editorPageTimeoutSeconds: clampInt(raw.editorPageTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.editorPageTimeoutSeconds),
+      generateTimeoutSeconds: clampInt(raw.generateTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.generateTimeoutSeconds),
+      publishTimeoutSeconds: clampInt(raw.publishTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.publishTimeoutSeconds)
     };
   }
 

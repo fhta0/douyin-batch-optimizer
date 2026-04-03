@@ -224,6 +224,27 @@
   </div>
 
   <div class="card">
+    <div class="field" style="margin-bottom: 6px;">
+      <label>优化项</label>
+    </div>
+    <div class="field">
+      <label for="attributeOptimizeEnabled">属性优化（批量）</label>
+      <label class="switch">
+        <input type="checkbox" id="attributeOptimizeEnabled">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="field">
+      <label for="qualityOptimizeEnabled">图文优化（包括主图3:4、主图视频）</label>
+      <label class="switch">
+        <input type="checkbox" id="qualityOptimizeEnabled">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="section-note">说明：勾选图文优化后，处理完成将自动发布商品</div>
+  </div>
+
+  <div class="card">
     <button class="advanced-toggle" id="advancedToggle" type="button">
       <span>高级设置</span>
       <span id="advancedArrow">∨</span>
@@ -244,6 +265,18 @@
       <div class="field">
         <label for="logRetentionCount">日志保留条数</label>
         <input class="input" id="logRetentionCount" type="number" min="5" max="200">
+      </div>
+      <div class="field">
+        <label for="editorPageTimeoutSeconds">编辑页超时(秒)</label>
+        <input class="input" id="editorPageTimeoutSeconds" type="number" min="10" max="120">
+      </div>
+      <div class="field">
+        <label for="generateTimeoutSeconds">生成超时(秒)</label>
+        <input class="input" id="generateTimeoutSeconds" type="number" min="10" max="120">
+      </div>
+      <div class="field">
+        <label for="publishTimeoutSeconds">发布超时(秒)</label>
+        <input class="input" id="publishTimeoutSeconds" type="number" min="10" max="120">
       </div>
     </div>
   </div>

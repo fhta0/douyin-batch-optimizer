@@ -13,7 +13,12 @@
     showFloatingPanel: true,
     panelOpacity: 72,
     autoResumeTask: true,
-    logRetentionCount: 20
+    logRetentionCount: 20,
+    attributeOptimizeEnabled: true,
+    qualityOptimizeEnabled: false,
+    editorPageTimeoutSeconds: 30,
+    generateTimeoutSeconds: 30,
+    publishTimeoutSeconds: 30
   };
 
   const CONFIG = {
@@ -45,7 +50,13 @@
     pendingBatchReconcile: null,
     pendingTaskCompletion: null,
     logs: [],
-    panelPosition: null
+    panelPosition: null,
+    qualityState: 'idle',
+    qualityProductId: null,
+    qualityCropExecuted: false,
+    qualityGenerateExecuted: false,
+    qualityOptimizedCount: 0,
+    qualityStartTime: null
   };
 
   let loopPromise = null;
@@ -189,7 +200,12 @@
       showFloatingPanel: typeof raw.showFloatingPanel === "boolean" ? raw.showFloatingPanel : DEFAULT_SETTINGS.showFloatingPanel,
       panelOpacity: clampInt(raw.panelOpacity, 40, 95, DEFAULT_SETTINGS.panelOpacity),
       autoResumeTask: typeof raw.autoResumeTask === "boolean" ? raw.autoResumeTask : DEFAULT_SETTINGS.autoResumeTask,
-      logRetentionCount: clampInt(raw.logRetentionCount, 5, 200, DEFAULT_SETTINGS.logRetentionCount)
+      logRetentionCount: clampInt(raw.logRetentionCount, 5, 200, DEFAULT_SETTINGS.logRetentionCount),
+      attributeOptimizeEnabled: typeof raw.attributeOptimizeEnabled === "boolean" ? raw.attributeOptimizeEnabled : DEFAULT_SETTINGS.attributeOptimizeEnabled,
+      qualityOptimizeEnabled: typeof raw.qualityOptimizeEnabled === "boolean" ? raw.qualityOptimizeEnabled : DEFAULT_SETTINGS.qualityOptimizeEnabled,
+      editorPageTimeoutSeconds: clampInt(raw.editorPageTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.editorPageTimeoutSeconds),
+      generateTimeoutSeconds: clampInt(raw.generateTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.generateTimeoutSeconds),
+      publishTimeoutSeconds: clampInt(raw.publishTimeoutSeconds, 10, 120, DEFAULT_SETTINGS.publishTimeoutSeconds)
     };
   }
 
@@ -253,7 +269,13 @@
             pendingBatchReconcile: state.pendingBatchReconcile,
             pendingTaskCompletion: state.pendingTaskCompletion,
             logs: state.logs.slice(0, settings.logRetentionCount),
-            panelPosition: state.panelPosition
+            panelPosition: state.panelPosition,
+            qualityState: state.qualityState,
+            qualityProductId: state.qualityProductId,
+            qualityCropExecuted: state.qualityCropExecuted,
+            qualityGenerateExecuted: state.qualityGenerateExecuted,
+            qualityOptimizedCount: state.qualityOptimizedCount,
+            qualityStartTime: state.qualityStartTime
           }
         },
         function () {
@@ -291,6 +313,12 @@
     state.pendingTaskCompletion = saved.pendingTaskCompletion || null;
     state.logs = Array.isArray(saved.logs) ? saved.logs.slice(0, settings.logRetentionCount) : [];
     state.panelPosition = saved.panelPosition || null;
+    state.qualityState = saved.qualityState || 'idle';
+    state.qualityProductId = saved.qualityProductId || null;
+    state.qualityCropExecuted = !!saved.qualityCropExecuted;
+    state.qualityGenerateExecuted = !!saved.qualityGenerateExecuted;
+    state.qualityOptimizedCount = saved.qualityOptimizedCount || 0;
+    state.qualityStartTime = saved.qualityStartTime || null;
     renderFloatingPanel();
   }
 
@@ -314,7 +342,13 @@
       lastDialogOffset: 0,
       pendingBatchReconcile: null,
       pendingTaskCompletion: null,
-      logs: []
+      logs: [],
+      qualityState: 'idle',
+      qualityProductId: null,
+      qualityCropExecuted: false,
+      qualityGenerateExecuted: false,
+      qualityOptimizedCount: 0,
+      qualityStartTime: null
     });
     if (reason) {
       log(reason);
@@ -402,7 +436,8 @@
         "#douyin-optimizer-panel .dbop-logs{max-height:160px;overflow:auto;background:rgba(255,255,255,.035);border-radius:10px;padding:8px}",
         "#douyin-optimizer-panel .dbop-log{font-size:11px;line-height:1.45;padding:4px 0;border-bottom:1px solid rgba(148,163,184,.12);word-break:break-all}",
         "#douyin-optimizer-panel .dbop-log:last-child{border-bottom:none}",
-        "#douyin-optimizer-panel .dbop-empty{font-size:11px;color:#94a3b8;padding:8px 0}"
+        "#douyin-optimizer-panel .dbop-empty{font-size:11px;color:#94a3b8;padding:8px 0}",
+        "#douyin-optimizer-panel .dbop-task-label{font-size:12px;color:#e2e8f0;margin-bottom:10px;padding:6px 10px;background:rgba(255,255,255,.08);border-radius:8px;text-align:center}"
       ].join("");
       document.documentElement.appendChild(style);
     }
@@ -421,6 +456,7 @@
         "</div>" +
         "</div>" +
         '<div class="dbop-body">' +
+        '<div class="dbop-task-label" data-field="taskLabel">本次任务：属性优化</div>' +
         '<div class="dbop-grid">' +
         '<div class="dbop-item"><div class="dbop-label">运行状态</div><div class="dbop-value" data-field="status">已停止</div></div>' +
         '<div class="dbop-item"><div class="dbop-label">已处理批次</div><div class="dbop-value" data-field="batch">0</div></div>' +
@@ -551,6 +587,7 @@
     const elapsedEl = panel.querySelector('[data-field="elapsed"]');
     const logsEl = panel.querySelector('[data-field="logs"]');
     const runBtn = panel.querySelector(".dbop-toggle-run");
+    const taskLabelEl = panel.querySelector('[data-field="taskLabel"]');
 
     const isActive = state.isRunning || state.pendingStart;
     const actionText = state.pendingStart ? "跳转中" : state.isRunning ? (state.stopRequested ? "停止中" : "运行中") : "已停止";
@@ -581,6 +618,21 @@
       runBtn.textContent = isActive ? (state.stopRequested ? "停止中" : "停止") : "开始";
       runBtn.disabled = !!state.stopRequested;
       runBtn.className = "dbop-btn dbop-toggle-run" + (isActive ? " is-running" : "");
+    }
+    if (taskLabelEl) {
+      const attrEnabled = settings.attributeOptimizeEnabled;
+      const qualityEnabled = settings.qualityOptimizeEnabled;
+      let taskText = "本次任务：";
+      if (attrEnabled && qualityEnabled) {
+        taskText += "属性优化 + 图文优化";
+      } else if (attrEnabled) {
+        taskText += "属性优化";
+      } else if (qualityEnabled) {
+        taskText += "图文优化";
+      } else {
+        taskText += "无";
+      }
+      taskLabelEl.textContent = taskText;
     }
   }
 
@@ -625,6 +677,12 @@
     state.lastDialogPageSize = null;
     state.lastDialogOffset = 0;
     state.logs = state.logs.slice(0, settings.logRetentionCount);
+    state.qualityState = 'idle';
+    state.qualityProductId = null;
+    state.qualityCropExecuted = false;
+    state.qualityGenerateExecuted = false;
+    state.qualityOptimizedCount = 0;
+    state.qualityStartTime = null;
   }
 
   async function startFromFloatingPanel() {
@@ -1702,6 +1760,419 @@
     return location.href.indexOf("/ffa/g/list") !== -1;
   }
 
+  function isQualityEditPage() {
+    return location.href.indexOf("/ffa/g/create") !== -1 && location.href.indexOf("entrance=edit") !== -1;
+  }
+
+  // ========== 图文优化相关函数 ==========
+
+  function findButtonByText(text) {
+    const buttons = document.querySelectorAll("button");
+    for (let i = 0; i < buttons.length; i++) {
+      const btnText = getText(buttons[i]);
+      if (btnText.indexOf(text) !== -1) {
+        return buttons[i];
+      }
+    }
+    return null;
+  }
+
+  async function waitForEditorPageReady(timeoutMs) {
+    const timeout = timeoutMs || settings.editorPageTimeoutSeconds * 1000;
+    const start = Date.now();
+    log("[图文] 等待编辑页加载完成...");
+    while (Date.now() - start < timeout) {
+      const hasImageSection = hasText("图文信息") || hasText("商品信息");
+      const hasPublishBtn = findButtonByText("发布商品") !== null;
+      if (hasImageSection && hasPublishBtn) {
+        log("[图文] 编辑页加载完成");
+        return true;
+      }
+      await sleep(500);
+    }
+    log("[图文] 编辑页加载超时");
+    return false;
+  }
+
+  async function handleSmartCrop() {
+    const cropBtn = findButtonByText("从1:1主图智能裁剪");
+    if (!cropBtn) {
+      log("[图文] 未找到智能裁剪按钮，可能已裁剪或不可用");
+      return false;
+    }
+    if (cropBtn.disabled) {
+      log("[图文] 智能裁剪按钮已禁用");
+      return false;
+    }
+    log("[图文] 执行智能裁剪");
+    cropBtn.click();
+    const timeout = 10000;
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const cancelBtn = findButtonByText("取消智能裁剪");
+      if (cancelBtn) {
+        log("[图文] 智能裁剪已执行");
+        return true;
+      }
+      await sleep(300);
+    }
+    log("[图文] 智能裁剪执行超时");
+    return false;
+  }
+
+  async function handleOneClickGenerate() {
+    const generateBtn = findButtonByText("一键生成");
+    if (!generateBtn) {
+      log("[图文] 未找到一键生成按钮，跳过");
+      return false;
+    }
+    if (generateBtn.disabled) {
+      log("[图文] 一键生成按钮已禁用");
+      return false;
+    }
+    log("[图文] 执行一键生成");
+    generateBtn.click();
+    const timeout = settings.generateTimeoutSeconds * 1000;
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const successToast = document.querySelector('[class*="success"], [class*="toast"]');
+      if (successToast && isElementVisible(successToast)) {
+        const toastText = getText(successToast);
+        if (toastText.indexOf("成功") !== -1 || toastText.indexOf("完成") !== -1) {
+          log("[图文] 一键生成完成");
+          return true;
+        }
+      }
+      if (!generateBtn.disabled) {
+        await sleep(500);
+        if (!generateBtn.disabled) {
+          log("[图文] 一键生成完成（按钮恢复）");
+          return true;
+        }
+      }
+      await sleep(500);
+    }
+    log("[图文] 一键生成执行超时");
+    return false;
+  }
+
+  function findPublishButton() {
+    return findButtonByText("发布商品");
+  }
+
+  function findConfirmButton() {
+    const modals = document.querySelectorAll('[class*="modal"], [class*="dialog"], [class*="popup"]');
+    for (let i = 0; i < modals.length; i++) {
+      const modal = modals[i];
+      if (!isElementVisible(modal)) continue;
+      const buttons = modal.querySelectorAll("button");
+      for (let j = 0; j < buttons.length; j++) {
+        const btnText = getText(buttons[j]);
+        if (btnText.indexOf("确认") !== -1 || btnText.indexOf("确定") !== -1) {
+          return buttons[j];
+        }
+      }
+    }
+    return null;
+  }
+
+  async function handlePublishConfirm() {
+    await sleep(500);
+    const confirmBtn = findConfirmButton();
+    if (confirmBtn) {
+      log("[发布] 点击确认弹窗");
+      confirmBtn.click();
+      await sleep(300);
+    }
+  }
+
+  async function waitForPublishSuccess(timeoutMs) {
+    const timeout = timeoutMs || settings.publishTimeoutSeconds * 1000;
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const successToast = document.querySelector('[class*="success"], [class*="toast"]');
+      if (successToast && isElementVisible(successToast)) {
+        const toastText = getText(successToast);
+        if (toastText.indexOf("成功") !== -1 || toastText.indexOf("完成") !== -1) {
+          log("[发布] 发布成功");
+          return true;
+        }
+      }
+      await sleep(500);
+    }
+    log("[发布] 发布结果等待超时");
+    return false;
+  }
+
+  function getWaitingProductId() {
+    return new Promise(function (resolve) {
+      const storage = getStorageArea();
+      if (!storage) {
+        resolve(null);
+        return;
+      }
+      storage.get(["qualityWaitingProduct"], function (result) {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        const data = result && result.qualityWaitingProduct;
+        if (!data || !data.productId) {
+          resolve(null);
+          return;
+        }
+        const age = Date.now() - (data.at || 0);
+        if (age > 120000) {
+          log("[图文] 等待商品ID已过期");
+          resolve(null);
+          return;
+        }
+        log("[图文] getWaitingProductId: 找到等待ID=" + data.productId + "，已等待" + Math.round(age / 1000) + "秒");
+        resolve(data.productId);
+      });
+    });
+  }
+
+  function clearWaitingProductId() {
+    return new Promise(function (resolve) {
+      const storage = getStorageArea();
+      if (!storage) {
+        resolve(false);
+        return;
+      }
+      storage.remove(["qualityWaitingProduct"], function () {
+        resolve(true);
+      });
+    });
+  }
+
+  function markEditPageCompleted(productId, success) {
+    return new Promise(function (resolve) {
+      const storage = getStorageArea();
+      if (!storage) {
+        resolve(false);
+        return;
+      }
+      storage.set({
+        qualityEditCompleted: {
+          productId: productId,
+          at: Date.now(),
+          success: success
+        }
+      }, function () {
+        log("[图文] 编辑页完成信号已写入");
+        resolve(true);
+      });
+    });
+  }
+
+  async function initQualityEditPageProcessor() {
+    if (!isQualityEditPage()) {
+      return;
+    }
+
+    log("[图文] 检测到编辑页环境");
+
+    const waitingProductId = await getWaitingProductId();
+    if (!waitingProductId) {
+      log("[图文] 未找到等待的商品ID，跳过处理");
+      return;
+    }
+
+    await clearWaitingProductId();
+
+    const ready = await waitForEditorPageReady();
+    if (!ready) {
+      log("[图文] 编辑页加载失败，保留页面等待人工确认");
+      return;
+    }
+
+    let cropExecuted = false;
+    let generateExecuted = false;
+
+    cropExecuted = await handleSmartCrop();
+    generateExecuted = await handleOneClickGenerate();
+
+    if (!cropExecuted && !generateExecuted) {
+      log("[发布] 无实际优化操作执行，跳过发布");
+      await markEditPageCompleted(waitingProductId, false);
+      window.close();
+      return;
+    }
+
+    const publishBtn = findPublishButton();
+    if (!publishBtn) {
+      log("[发布] 未找到发布按钮");
+      await markEditPageCompleted(waitingProductId, false);
+      return;
+    }
+
+    if (publishBtn.disabled) {
+      log("[发布] 发布按钮不可点击，保留页面");
+      await markEditPageCompleted(waitingProductId, false);
+      return;
+    }
+
+    log("[发布] 点击发布商品");
+    publishBtn.click();
+    await handlePublishConfirm();
+
+    const success = await waitForPublishSuccess();
+    if (success) {
+      log("[发布] 发布成功，准备关闭编辑页");
+      await markEditPageCompleted(waitingProductId, true);
+      await sleep(1000);
+      window.close();
+    } else {
+      log("[发布] 发布超时，保留页面等待人工确认");
+      await markEditPageCompleted(waitingProductId, false);
+    }
+  }
+
+  // ========== 列表页图文优化扫描函数 ==========
+
+  function findQualityOptimizeButton() {
+    const tables = document.querySelectorAll("table");
+    for (let t = 0; t < tables.length; t++) {
+      const buttons = tables[t].querySelectorAll("button");
+      for (let i = 0; i < buttons.length; i++) {
+        const btnText = getText(buttons[i]);
+        if (btnText === "去优化" || btnText.indexOf("去优化") !== -1) {
+          if (isElementVisible(buttons[i]) && !buttons[i].disabled) {
+            return buttons[i];
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function extractProductIdFromRow(button) {
+    let row = button.closest("tr");
+    if (!row) {
+      return null;
+    }
+    const links = row.querySelectorAll("a[href*='product'], a[href*='goods'], a[href*='/g/']");
+    for (let i = 0; i < links.length; i++) {
+      const href = links[i].getAttribute("href") || "";
+      const match = href.match(/\/g\/(\d+)/);
+      if (match) {
+        return match[1];
+      }
+    }
+    const cells = row.querySelectorAll("td");
+    for (let i = 0; i < cells.length; i++) {
+      const cellText = getText(cells[i]);
+      const idMatch = cellText.match(/\b(\d{10,})\b/);
+      if (idMatch) {
+        return idMatch[1];
+      }
+    }
+    return Date.now().toString();
+  }
+
+  function setWaitingProductId(productId) {
+    return new Promise(function (resolve) {
+      const storage = getStorageArea();
+      if (!storage) {
+        resolve(false);
+        return;
+      }
+      log("[图文] 设置等待商品ID：" + productId);
+      storage.set({
+        qualityWaitingProduct: {
+          productId: productId,
+          at: Date.now()
+        }
+      }, function () {
+        log("[图文] 等待商品ID已写入storage");
+        resolve(true);
+      });
+    });
+  }
+
+  async function waitForEditPageCompletion(productId, timeoutMs) {
+    const timeout = timeoutMs || 60000;
+    const start = Date.now();
+    log("[图文] 开始等待编辑页完成，超时：" + Math.round(timeout / 1000) + "秒");
+    while (Date.now() - start < timeout) {
+      const result = await new Promise(function (resolve) {
+        const storage = getStorageArea();
+        if (!storage) {
+          resolve(null);
+          return;
+        }
+        storage.get(["qualityEditCompleted"], function (data) {
+          if (chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          resolve(data && data.qualityEditCompleted ? data.qualityEditCompleted : null);
+        });
+      });
+      if (result && result.productId === productId) {
+        const storage = getStorageArea();
+        if (storage) {
+          storage.remove(["qualityEditCompleted"]);
+        }
+        log("[图文] 编辑页处理完成，结果：" + (result.success ? "成功" : "失败"));
+        return result.success;
+      }
+      await sleep(1000);
+    }
+    log("[图文] 编辑页处理超时");
+    return false;
+  }
+
+  async function qualityOptimizeRunner() {
+    log("[图文] 开始图文优化扫描");
+    state.qualityState = 'scanning';
+    state.qualityStartTime = Date.now();
+    await syncRuntime();
+
+    while (state.isRunning && !state.stopRequested && settings.qualityOptimizeEnabled) {
+      const optimizeBtn = findQualityOptimizeButton();
+      if (!optimizeBtn) {
+        log("[图文] 当前页无去优化入口，任务完成");
+        state.qualityState = 'completed';
+        await syncRuntime();
+        break;
+      }
+
+      const productId = extractProductIdFromRow(optimizeBtn);
+      log("[图文] 发现去优化入口，商品ID：" + productId);
+      state.qualityProductId = productId;
+      state.qualityState = 'processing';
+      await syncRuntime();
+
+      await setWaitingProductId(productId);
+
+      optimizeBtn.click();
+      log("[图文] 已打开编辑页，等待处理完成");
+
+      const completed = await waitForEditPageCompletion(productId, settings.editorPageTimeoutSeconds * 1000 + 30000);
+      if (completed) {
+        state.qualityOptimizedCount = (state.qualityOptimizedCount || 0) + 1;
+        log("[图文] 商品 " + productId + " 处理成功，累计图文优化 " + state.qualityOptimizedCount + " 个");
+      } else {
+        log("[图文] 商品 " + productId + " 处理超时或失败");
+      }
+
+      state.qualityProductId = null;
+      state.qualityState = 'scanning';
+      await syncRuntime();
+
+      await sleep(settings.intervalSeconds * 1000);
+    }
+
+    const duration = state.qualityStartTime ? Math.round((Date.now() - state.qualityStartTime) / 1000) : 0;
+    log("[图文] 图文优化完成，共处理 " + state.qualityOptimizedCount + " 个商品，耗时 " + duration + " 秒");
+  }
+
+  // ========== 列表页图文优化扫描函数结束 ==========
+
+  // ========== 图文优化相关函数结束 ==========
+
   function isOnRecordPage() {
     const url = location.href;
     return url.indexOf("batch") !== -1 || url.indexOf("record") !== -1 || hasText("批量操作记录");
@@ -2028,54 +2499,62 @@
     await syncRuntime();
     log("自动优化已启动");
 
-    while (state.isRunning) {
-      if (!isOnListPage()) {
-        await returnToListPage();
-      }
+    // 属性优化流程
+    if (settings.attributeOptimizeEnabled) {
+      while (state.isRunning && !state.stopRequested) {
+        if (!isOnListPage()) {
+          await returnToListPage();
+        }
 
-      await restoreListPosition();
-      await rememberListPosition();
+        await restoreListPosition();
+        await rememberListPosition();
 
-      await reconcileCompletedBatchIfNeeded();
+        await reconcileCompletedBatchIfNeeded();
 
-      if (state.pendingTaskCompletion) {
-        const completionReason = state.pendingTaskCompletion.reason || "任务完成";
-        state.pendingTaskCompletion = null;
-        log(completionReason);
-        break;
-      }
+        if (state.pendingTaskCompletion) {
+          const completionReason = state.pendingTaskCompletion.reason || "任务完成";
+          state.pendingTaskCompletion = null;
+          log(completionReason);
+          break;
+        }
 
-      const pending = getPendingCount();
-      if (pending === 0) {
-        log("未检测到待优化商品，流程结束");
-        break;
-      }
-      if (pending === null) {
-        log("未能识别剩余数量，继续执行下一批");
-      } else {
-        log("当前待优化数量：" + pending);
-      }
+        const pending = getPendingCount();
+        if (pending === 0) {
+          log("未检测到待优化商品，流程结束");
+          break;
+        }
+        if (pending === null) {
+          log("未能识别剩余数量，继续执行下一批");
+        } else {
+          log("当前待优化数量：" + pending);
+        }
 
-      const batchResult = await processBatchWithRetry();
-      if (batchResult.failed) {
-        log("连续重试失败，已停止本次任务");
-        break;
-      }
+        const batchResult = await processBatchWithRetry();
+        if (batchResult.failed) {
+          log("连续重试失败，已停止本次任务");
+          break;
+        }
 
-      if (batchResult.finished) {
-        log("任务完成：弹窗已到最后一页，且无更多可选商品");
-        break;
-      }
+        if (batchResult.finished) {
+          log("任务完成：弹窗已到最后一页，且无更多可选商品");
+          break;
+        }
 
-      if (state.stopRequested) {
-        log("已按请求停止任务");
-        break;
-      }
+        if (state.stopRequested) {
+          log("已按请求停止任务");
+          break;
+        }
 
-      if (!state.isRunning) {
-        break;
+        if (!state.isRunning) {
+          break;
+        }
+        await sleep(settings.intervalSeconds * 1000);
       }
-      await sleep(settings.intervalSeconds * 1000);
+    }
+
+    // 图文优化流程
+    if (settings.qualityOptimizeEnabled && state.isRunning && !state.stopRequested) {
+      await qualityOptimizeRunner();
     }
 
     if (state.startTime) {
@@ -2086,7 +2565,10 @@
     const duration = Math.round((state.elapsedMs || 0) / 1000);
     state.isRunning = false;
     await syncRuntime();
-    log("优化完成：共 " + state.batchCount + " 批，" + state.totalOptimized + " 个商品，耗时 " + duration + " 秒");
+
+    const totalAttrOptimized = state.totalOptimized || 0;
+    const totalQualityOptimized = state.qualityOptimizedCount || 0;
+    log("全部优化完成：属性 " + totalAttrOptimized + " 个，图文 " + totalQualityOptimized + " 个，耗时 " + duration + " 秒");
 
     try {
       chrome.runtime.sendMessage({
@@ -2197,6 +2679,13 @@
       startElapsedTimer();
       log("当前店铺：" + getShopLogLabel());
       log("content script 已加载");
+
+      // 如果是编辑页，启动编辑页处理器
+      if (isQualityEditPage()) {
+        initQualityEditPageProcessor();
+        return;
+      }
+
       setTimeout(function () {
         getPendingCount();
       }, 1200);
