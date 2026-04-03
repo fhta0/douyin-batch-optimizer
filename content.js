@@ -744,6 +744,8 @@
       );
     }
     state.pendingBatchReconcile = null;
+    state.lastDialogPage = 1;
+    state.lastDialogOffset = 0;
     await syncRuntime();
     return true;
   }
@@ -1657,18 +1659,16 @@
       const pageDidNotChange =
         pageBeforeNext !== null && currentDialogPage !== null && pageBeforeNext === currentDialogPage;
       const noSelectionGrowth = oldSelected !== null && selected !== null && selected <= oldSelected;
-      const looksLikeTailPage =
-        currentVisibleSelectable > 0 && currentVisibleSelectable < currentPageCapacity;
       if (pageDidNotChange && noSelectionGrowth) {
         stagnantNextPageHits += 1;
       } else {
         stagnantNextPageHits = 0;
       }
-      if ((pageDidNotChange && noSelectionGrowth && looksLikeTailPage) || stagnantNextPageHits >= 2) {
+      if (stagnantNextPageHits >= 3) {
         exhausted = true;
-        exhaustedReason = stagnantNextPageHits >= 2 ? "连续翻页无变化" : "翻页无变化且已到尾页";
+        exhaustedReason = "连续翻页无变化";
         log(
-          "检测到翻页后页码未变化且无新增可选项，视为已到最后一页（当前页 " +
+          "检测到连续3次翻页无变化，视为已到最后一页（当前页 " +
             currentDialogPage +
             "，可勾选 " +
             currentVisibleSelectable +
